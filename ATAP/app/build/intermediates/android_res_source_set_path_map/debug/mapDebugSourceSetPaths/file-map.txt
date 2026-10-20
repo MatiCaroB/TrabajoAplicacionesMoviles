@@ -1,0 +1,8 @@
+com.example.atap.app-pngs-0 C:\Users\matia\Desktop\TrabajoAplicacionesMoviles\ATAP\app\build\generated\res\pngs\debug
+com.example.atap.app-updated_navigation_xml-1 C:\Users\matia\Desktop\TrabajoAplicacionesMoviles\ATAP\app\build\generated\updated_navigation_xml\debug
+com.example.atap.app-packageDebugResources-2 C:\Users\matia\Desktop\TrabajoAplicacionesMoviles\ATAP\app\build\intermediates\incremental\debug\packageDebugResources\merged.dir
+com.example.atap.app-packageDebugResources-3 C:\Users\matia\Desktop\TrabajoAplicacionesMoviles\ATAP\app\build\intermediates\incremental\debug\packageDebugResources\stripped.dir
+com.example.atap.app-debug-4 C:\Users\matia\Desktop\TrabajoAplicacionesMoviles\ATAP\app\build\intermediates\merged_res\debug\mergeDebugResources
+com.example.atap.app-debug-5 C:\Users\matia\Desktop\TrabajoAplicacionesMoviles\ATAP\app\src\debug\res
+com.example.atap.app-main-6 C:\Users\matia\Desktop\TrabajoAplicacionesMoviles\ATAP\app\src\main\res
+gradleHome-0 C:\Users\matia\.gradle
