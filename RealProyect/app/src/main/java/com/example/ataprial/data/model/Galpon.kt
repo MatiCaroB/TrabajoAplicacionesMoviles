@@ -2,6 +2,8 @@ package com.example.ataprial.data.model
 
 import java.util.Date
 
+//Datos críticos son propuestos por nosotros
+
 enum class EstadoGalpon{NORMAL, ADVERTENCIA, CRITICO}
 
 
