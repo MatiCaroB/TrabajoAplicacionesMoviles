@@ -2,21 +2,34 @@ package com.example.ataprial.ui.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.ataprial.data.database.AppDatabase
+import com.example.ataprial.data.model.TipoUsuario
 import com.example.ataprial.ui.screen.GalponesScreen
 import com.example.ataprial.ui.screen.HomeScreen
 import com.example.ataprial.ui.screen.LoginScreen
 import com.example.ataprial.ui.screen.UsuarioScreen
+import com.example.ataprial.ui.viewmodel.GalponesViewModel
+import com.example.ataprial.ui.viewmodel.GalponesViewModelFactory
 import com.example.ataprial.ui.viewmodel.UsuarioViewModel
-import com.example.ataprial.data.model.TipoUsuario
 
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
     val usuarioViewModel: UsuarioViewModel = viewModel()
+
+    // 1. Obtención del contexto y base de datos SQLite antes de las rutas
+    val context = LocalContext.current
+    val database = AppDatabase.getDatabase(context)
+
+    // 2. Creación del GalponesViewModel usando su fábrica
+    val galponesViewModel: GalponesViewModel = viewModel(
+        factory = GalponesViewModelFactory(database.galponDao())
+    )
 
     NavHost(
         navController = navController,
@@ -28,7 +41,6 @@ fun AppNavigation() {
                 viewModel = usuarioViewModel,
                 onLoginSuccess = {
                     navController.navigate(AppRoutes.HOME) {
-                        // Limpia de forma segura el Login para que no se pueda volver atrás con el botón físico del teléfono
                         popUpTo(AppRoutes.LOGIN) { inclusive = true }
                     }
                 },
@@ -39,7 +51,7 @@ fun AppNavigation() {
         }
 
         // 🏠 RUTA 2: Menú Principal (Home)
-        composable(AppRoutes.HOME) {
+        composable(route = AppRoutes.HOME) {
             HomeScreen(
                 onNavegarAUsuarios = {
                     navController.navigate(AppRoutes.USUARIOS)
@@ -55,13 +67,8 @@ fun AppNavigation() {
             UsuarioScreen(
                 viewModel = usuarioViewModel,
                 onCerrarSesion = {
-                    // 💡 SOLUCIÓN DEFINTIVA AL CRASH:
-                    // Verificamos si hay un historial previo al que regresar de forma segura.
-                    // Si el usuario entró al registro de forma anónima desde afuera, popBackStack() lo regresará al Login limpiamente sin romper el enrutador.
                     val regresoExitoso = navController.popBackStack()
-
                     if (!regresoExitoso) {
-                        // Si por algún motivo la pila estaba corrupta, hace el salto forzado seguro
                         navController.navigate(AppRoutes.LOGIN) {
                             popUpTo(AppRoutes.LOGIN) { inclusive = true }
                         }
@@ -76,6 +83,7 @@ fun AppNavigation() {
             val esJefatura = usuarioActual?.rol == TipoUsuario.JEFATURA
 
             GalponesScreen(
+                viewModel = galponesViewModel, // 👈 Pasamos el ViewModel con el DAO de SQLite
                 esJefatura = esJefatura,
                 onVolver = { navController.popBackStack() }
             )

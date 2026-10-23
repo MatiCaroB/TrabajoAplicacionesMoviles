@@ -13,7 +13,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.ataprial.data.model.EstadoGalpon
 import com.example.ataprial.data.model.Galpon
 import com.example.ataprial.ui.viewmodel.GalponesViewModel
@@ -21,9 +20,9 @@ import com.example.ataprial.ui.viewmodel.GalponesViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GalponesScreen(
-    esJefatura: Boolean = true, // Controla si se muestra el formulario de registro
-    onVolver: () -> Unit,       // Callback para la flecha de regreso
-    viewModel: GalponesViewModel = viewModel()
+    viewModel: GalponesViewModel, // 👈 Se elimina el = viewModel() por defecto
+    esJefatura: Boolean = true,
+    onVolver: () -> Unit
 ) {
     val listaGalpones by viewModel.galpones.collectAsState()
 
@@ -152,7 +151,10 @@ fun GalponesScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                items(listaGalpones) { galpon ->
+                items(
+                    items = listaGalpones,
+                    key = { it.id } // 👈 Key único para Room/SQLite
+                ) { galpon ->
                     GalponItemCard(galpon)
                 }
             }
@@ -224,6 +226,3 @@ fun GalponItemCard(galpon: Galpon) {
         }
     }
 }
-// me imagino que aquí podríamos hacer la interfaz respecto a galpones, se me ocurre un menú donde aparezcan todos los galpones y al presionar en cada uno te puedas
-// ir a sus detalles, serían como tarjetas, pero puedes filtrarlos para llegar a específicos más rápido
-// y en las tarjetas de los galpones información resumida de mayor importancia, como temperaturas o que si alguno esté en alerta siempre aparezca de los primeros you know

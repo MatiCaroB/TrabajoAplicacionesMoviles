@@ -1,0 +1,21 @@
+package com.example.ataprial.data.dao
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import com.example.ataprial.data.model.Galpon
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+interface GalponDao {
+
+    @Query("SELECT * FROM galpones ORDER BY fechaActualizacion DESC")
+    fun obtenerTodosLosGalpones(): Flow<List<Galpon>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertarGalpon(galpon: Galpon)
+
+    @Query("DELETE FROM galpones WHERE id = :id")
+    suspend fun eliminarGalpon(id: String)
+}
