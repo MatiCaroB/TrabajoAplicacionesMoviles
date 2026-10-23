@@ -16,7 +16,8 @@ import androidx.compose.ui.unit.sp
 
 @Composable
 fun HomeScreen(
-    onNavegarAUsuarios: () -> Unit
+    onNavegarAUsuarios: () -> Unit,
+    onNavegarAGalpones: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -53,10 +54,10 @@ fun HomeScreen(
         // OPCIÓN 2: Galpones (Deshabilitada por ahora)
         OpcionHomeCard(
             titulo = "Control de Galpones",
-            descripcion = "Próximamente",
+            descripcion = "Monitorear galpones y estado ambiental",
             icono = Icons.Default.Warehouse,
-            onClick = {},
-            habilitado = false
+            onClick = onNavegarAGalpones,
+            habilitado = true
         )
 
         Spacer(modifier = Modifier.height(16.dp))
