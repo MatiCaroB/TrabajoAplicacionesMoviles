@@ -1,0 +1,10 @@
+Cuenta de Jefatura
+Usuario(id = "jefe-123", nombre = "Carlos Jefe", correo = "jefe@mail.com", clave ="123456", rol = TipoUsuario.JEFATURA)
+
+
+Cuenta de Supervisor
+Usuario(id = "super-123", nombre = "Ana Supervisora", correo = "supervisor@mail.com", clave ="654321", rol = TipoUsuario.SUPERVISOR)
+
+
+Cuenta de Operario
+Usuario(id = "ope-123", nombre = "Juan Operario", correo = "operario@mail.com", clave ="papoi123", rol = TipoUsuario.OPERARIO)
