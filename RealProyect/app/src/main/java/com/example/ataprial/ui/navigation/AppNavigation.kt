@@ -80,11 +80,11 @@ fun AppNavigation() {
         // 🏗️ RUTA 4: Galpones
         composable(route = AppRoutes.GALPONES) {
             val usuarioActual = usuarioViewModel.usuarioLogueado.collectAsState().value
-            val esJefatura = usuarioActual?.rol == TipoUsuario.JEFATURA
+            val rol = usuarioActual?.rol ?: TipoUsuario.OPERARIO // Por defecto OPERARIO si no hay sesión
 
             GalponesScreen(
-                viewModel = galponesViewModel, // 👈 Pasamos el ViewModel con el DAO de SQLite
-                esJefatura = esJefatura,
+                viewModel = galponesViewModel,
+                rolUsuario = rol, // 👈 Le pasamos el ROL (OPERARIO, SUPERVISOR o JEFATURA)
                 onVolver = { navController.popBackStack() }
             )
         }

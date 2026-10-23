@@ -6,6 +6,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -15,13 +17,14 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.ataprial.data.model.EstadoGalpon
 import com.example.ataprial.data.model.Galpon
+import com.example.ataprial.data.model.TipoUsuario
 import com.example.ataprial.ui.viewmodel.GalponesViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GalponesScreen(
-    viewModel: GalponesViewModel, // 👈 Se elimina el = viewModel() por defecto
-    esJefatura: Boolean = true,
+    viewModel: GalponesViewModel,
+    rolUsuario: TipoUsuario = TipoUsuario.OPERARIO, // Rol del usuario logueado
     onVolver: () -> Unit
 ) {
     val listaGalpones by viewModel.galpones.collectAsState()
@@ -30,6 +33,7 @@ fun GalponesScreen(
     var temperatura by remember { mutableStateOf("") }
     var humedad by remember { mutableStateOf("") }
     var mensajeError by remember { mutableStateOf<String?>(null) }
+    var mensajeConfirmacion by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
         topBar = {
@@ -55,10 +59,10 @@ fun GalponesScreen(
                 .padding(innerPadding)
                 .padding(16.dp)
         ) {
-            // SOLO JEFATURA: Formulario para registrar
-            if (esJefatura) {
+            // 🔴 SOLO JEFATURA: Formulario para registrar nuevos galpones
+            if (rolUsuario == TipoUsuario.JEFATURA) {
                 Text(
-                    text = "Registrar Nuevo Galpón",
+                    text = "Registrar Nuevo Galpón (Jefatura)",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -138,9 +142,26 @@ fun GalponesScreen(
                 HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
             }
 
-            // VISTA COMÚN (Jefatura y Operario): Lista de Galpones
+            // Mensaje informativo temporal al realizar una acción de Operario o Supervisor
+            if (mensajeConfirmacion != null) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                ) {
+                    Text(
+                        text = mensajeConfirmacion!!,
+                        modifier = Modifier.padding(12.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            // VISTA DE GALPONES PARA TODOS LOS ROLES
             Text(
-                text = "Galpones Registrados (${listaGalpones.size})",
+                text = "Galpones Registrados (${listaGalpones.size}) - Rol: ${rolUsuario.name}",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -153,9 +174,18 @@ fun GalponesScreen(
             ) {
                 items(
                     items = listaGalpones,
-                    key = { it.id } // 👈 Key único para Room/SQLite
+                    key = { it.id }
                 ) { galpon ->
-                    GalponItemCard(galpon)
+                    GalponItemCard(
+                        galpon = galpon,
+                        rolUsuario = rolUsuario,
+                        onAccionOperario = {
+                            mensajeConfirmacion = "✅ Operario confirmó acción en ${galpon.nombreGalpon}"
+                        },
+                        onAccionSupervisor = {
+                            mensajeConfirmacion = "📊 Supervisor consultó el historial de ${galpon.nombreGalpon}"
+                        }
+                    )
                 }
             }
         }
@@ -163,7 +193,12 @@ fun GalponesScreen(
 }
 
 @Composable
-fun GalponItemCard(galpon: Galpon) {
+fun GalponItemCard(
+    galpon: Galpon,
+    rolUsuario: TipoUsuario,
+    onAccionOperario: () -> Unit,
+    onAccionSupervisor: () -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -209,19 +244,53 @@ fun GalponItemCard(galpon: Galpon) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(
-                    text = "Temp: ${galpon.temperatura} °C",
-                    style = MaterialTheme.typography.bodySmall
-                )
-                Text(
-                    text = "Humedad: ${galpon.humedad} %",
-                    style = MaterialTheme.typography.bodySmall
-                )
+                Text(text = "Temp: ${galpon.temperatura} °C", style = MaterialTheme.typography.bodySmall)
+                Text(text = "Humedad: ${galpon.humedad} %", style = MaterialTheme.typography.bodySmall)
                 Text(
                     text = if (galpon.alertasActivas) "⚠️ Alerta" else "✅ OK",
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Bold
                 )
+            }
+
+            // ACCIONES DIFERENCIADAS POR ROL
+            Spacer(modifier = Modifier.height(12.dp))
+
+            when (rolUsuario) {
+                TipoUsuario.OPERARIO -> {
+                    // 🔵 OPERARIO: Registrar/Confirmar acción realizada
+                    Button(
+                        onClick = onAccionOperario,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Confirmar Acción / Atender Alerta")
+                    }
+                }
+                TipoUsuario.SUPERVISOR -> {
+                    // 🟡 SUPERVISOR: Revisar historial de eventos e inspecciones
+                    OutlinedButton(
+                        onClick = onAccionSupervisor,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.History,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Ver Historial de Mediciones")
+                    }
+                }
+                TipoUsuario.JEFATURA -> {
+                    // 🔴 JEFATURA: Ya administra el formulario arriba, así que ve el estado compacto sin saturar botones
+                }
             }
         }
     }
