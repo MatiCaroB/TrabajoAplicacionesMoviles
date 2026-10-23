@@ -8,7 +8,6 @@ enum class TipoUsuario {
     SUPERVISOR,
     JEFATURA
 }
-
 @Entity(tableName = "usuarios")
 data class Usuario(
     @PrimaryKey val id: String,

@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,6 +21,8 @@ import com.example.ataprial.ui.viewmodel.GalponesViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GalponesScreen(
+    esJefatura: Boolean = true, // Controla si se muestra el formulario de registro
+    onVolver: () -> Unit,       // Callback para la flecha de regreso
     viewModel: GalponesViewModel = viewModel()
 ) {
     val listaGalpones by viewModel.galpones.collectAsState()
@@ -32,6 +36,14 @@ fun GalponesScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Control de Galpones") },
+                navigationIcon = {
+                    IconButton(onClick = onVolver) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Volver"
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer
                 )
@@ -44,86 +56,90 @@ fun GalponesScreen(
                 .padding(innerPadding)
                 .padding(16.dp)
         ) {
-            Text(
-                text = "Registrar Nuevo Galpón",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            OutlinedTextField(
-                value = nombreGalpon,
-                onValueChange = {
-                    nombreGalpon = it
-                    mensajeError = null
-                },
-                label = { Text("Nombre del galpón") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                OutlinedTextField(
-                    value = temperatura,
-                    onValueChange = {
-                        temperatura = it
-                        mensajeError = null
-                    },
-                    label = { Text("Temp (°C)") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.weight(1f),
-                    singleLine = true
-                )
-
-                OutlinedTextField(
-                    value = humedad,
-                    onValueChange = {
-                        humedad = it
-                        mensajeError = null
-                    },
-                    label = { Text("Humedad (%)") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.weight(1f),
-                    singleLine = true
-                )
-            }
-
-            if (mensajeError != null) {
+            // SOLO JEFATURA: Formulario para registrar
+            if (esJefatura) {
                 Text(
-                    text = mensajeError!!,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 4.dp)
+                    text = "Registrar Nuevo Galpón",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
                 )
-            }
 
-            Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-            Button(
-                onClick = {
-                    val exito = viewModel.agregarGalpon(nombreGalpon, temperatura, humedad)
-                    if (exito) {
-                        nombreGalpon = ""
-                        temperatura = ""
-                        humedad = ""
+                OutlinedTextField(
+                    value = nombreGalpon,
+                    onValueChange = {
+                        nombreGalpon = it
                         mensajeError = null
-                    } else {
-                        mensajeError = "Completa el nombre, temperatura y humedad válidos."
-                    }
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Guardar Galpón")
+                    },
+                    label = { Text("Nombre del galpón") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    OutlinedTextField(
+                        value = temperatura,
+                        onValueChange = {
+                            temperatura = it
+                            mensajeError = null
+                        },
+                        label = { Text("Temp (°C)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+
+                    OutlinedTextField(
+                        value = humedad,
+                        onValueChange = {
+                            humedad = it
+                            mensajeError = null
+                        },
+                        label = { Text("Humedad (%)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                }
+
+                if (mensajeError != null) {
+                    Text(
+                        text = mensajeError!!,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Button(
+                    onClick = {
+                        val exito = viewModel.agregarGalpon(nombreGalpon, temperatura, humedad)
+                        if (exito) {
+                            nombreGalpon = ""
+                            temperatura = ""
+                            humedad = ""
+                            mensajeError = null
+                        } else {
+                            mensajeError = "Completa el nombre, temperatura y humedad válidos."
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Guardar Galpón")
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
             }
 
-            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
-
+            // VISTA COMÚN (Jefatura y Operario): Lista de Galpones
             Text(
                 text = "Galpones Registrados (${listaGalpones.size})",
                 style = MaterialTheme.typography.titleMedium,
@@ -208,7 +224,6 @@ fun GalponItemCard(galpon: Galpon) {
         }
     }
 }
-
 // me imagino que aquí podríamos hacer la interfaz respecto a galpones, se me ocurre un menú donde aparezcan todos los galpones y al presionar en cada uno te puedas
 // ir a sus detalles, serían como tarjetas, pero puedes filtrarlos para llegar a específicos más rápido
 // y en las tarjetas de los galpones información resumida de mayor importancia, como temperaturas o que si alguno esté en alerta siempre aparezca de los primeros you know

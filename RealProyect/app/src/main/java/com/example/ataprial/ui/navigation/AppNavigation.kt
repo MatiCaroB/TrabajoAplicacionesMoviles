@@ -1,6 +1,7 @@
 package com.example.ataprial.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -10,6 +11,7 @@ import com.example.ataprial.ui.screen.HomeScreen
 import com.example.ataprial.ui.screen.LoginScreen
 import com.example.ataprial.ui.screen.UsuarioScreen
 import com.example.ataprial.ui.viewmodel.UsuarioViewModel
+import com.example.ataprial.data.model.TipoUsuario
 
 @Composable
 fun AppNavigation() {
@@ -69,8 +71,14 @@ fun AppNavigation() {
         }
 
         // 🏗️ RUTA 4: Galpones
-        composable(AppRoutes.GALPONES) {
-            GalponesScreen()
+        composable(route = AppRoutes.GALPONES) {
+            val usuarioActual = usuarioViewModel.usuarioLogueado.collectAsState().value
+            val esJefatura = usuarioActual?.rol == TipoUsuario.JEFATURA
+
+            GalponesScreen(
+                esJefatura = esJefatura,
+                onVolver = { navController.popBackStack() }
+            )
         }
     }
 }
