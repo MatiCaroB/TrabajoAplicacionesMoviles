@@ -7,11 +7,13 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.ataprial.data.dao.GalponDao
-import com.example.ataprial.data.dao.GranjaDao // Importamos el nuevo Dao
+import com.example.ataprial.data.dao.GranjaDao
+import com.example.ataprial.data.dao.MedicionGalponDao
 import com.example.ataprial.data.dao.UsuarioDao
 import com.example.ataprial.data.model.EstadoGalpon
 import com.example.ataprial.data.model.Galpon
-import com.example.ataprial.data.model.Granja // Importamos la nueva Entidad
+import com.example.ataprial.data.model.Granja
+import com.example.ataprial.data.model.MedicionGalpon
 import com.example.ataprial.data.model.TipoUsuario
 import com.example.ataprial.data.model.Usuario
 import kotlinx.coroutines.CoroutineScope
@@ -20,14 +22,19 @@ import kotlinx.coroutines.launch
 import java.util.Date
 import java.util.UUID
 
-// Añadimos Granja::class al listado de entidades de Room
-@Database(entities = [Usuario::class, Galpon::class, Granja::class], version = 1, exportSchema = false)
+// Añadimos MedicionGalpon::class y subimos la versión a 2 para recrear la estructura de la BD
+@Database(
+    entities = [Usuario::class, Galpon::class, Granja::class, MedicionGalpon::class],
+    version = 2,
+    exportSchema = false
+)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun usuarioDao(): UsuarioDao
     abstract fun galponDao(): GalponDao
     abstract fun granjaDao(): GranjaDao
+    abstract fun medicionGalponDao(): MedicionGalponDao
 
     companion object {
         @Volatile
@@ -40,6 +47,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "ataprial_database"
                 )
+                    .fallbackToDestructiveMigration() // Destruye y recrea la BD al cambiar de versión durante desarrollo
                     .addCallback(AppDatabaseCallback(context))
                     .build()
                 INSTANCE = instance
@@ -61,21 +69,20 @@ abstract class AppDatabase : RoomDatabase() {
                 val galponDao = database.galponDao()
                 val granjaDao = database.granjaDao()
 
-                //  1. Cuenta de Jefatura
+                // 1. Cuenta de Jefatura
                 usuarioDao.insertarUsuario(
                     Usuario(id = "jefe-123", nombre = "Carlos Jefe", correo = "jefe@mail.com", clave ="123456", rol = TipoUsuario.JEFATURA)
                 )
 
-                //  2. Cuenta de Supervisor
+                // 2. Cuenta de Supervisor
                 usuarioDao.insertarUsuario(
                     Usuario(id = "super-123", nombre = "Ana Supervisora", correo = "supervisor@mail.com", clave ="654321", rol = TipoUsuario.SUPERVISOR)
                 )
 
-                //  3. Cuenta de Operario
+                // 3. Cuenta de Operario
                 usuarioDao.insertarUsuario(
                     Usuario(id = "ope-123", nombre = "Juan Operario", correo = "operario@mail.com", clave ="papoi123", rol = TipoUsuario.OPERARIO)
                 )
-
 
                 granjaDao.insertarGranja(
                     Granja(id = "GRANJA-01", nombreGranja = "Granja Central Inicial", ubicacion = "Sector Principal")

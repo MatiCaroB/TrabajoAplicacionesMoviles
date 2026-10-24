@@ -17,7 +17,8 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun HomeScreen(
     onNavegarAUsuarios: () -> Unit,
-    onNavegarAGalpones: () -> Unit
+    onNavegarAGalpones: () -> Unit,
+    onNavegarAHistorial: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -40,7 +41,7 @@ fun HomeScreen(
             modifier = Modifier.padding(top = 4.dp, bottom = 32.dp)
         )
 
-        // OPCIÓN 1: Gestión de Usuarios (ACTIVA)
+        // OPCIÓN 1: Gestión de Usuarios (
         OpcionHomeCard(
             titulo = "Gestión de Usuarios",
             descripcion = "Crear y administrar cuentas con roles",
@@ -51,7 +52,7 @@ fun HomeScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // OPCIÓN 2: Galpones (Deshabilitada por ahora)
+        // OPCIÓN 2: Galpones
         OpcionHomeCard(
             titulo = "Control de Galpones",
             descripcion = "Monitorear galpones y estado ambiental",
@@ -62,13 +63,13 @@ fun HomeScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // OPCIÓN 3: Monitoreo (Deshabilitada por ahora)
+        // OPCIÓN 3: Historial / Monitoreo de Sensores
         OpcionHomeCard(
-            titulo = "Monitoreo de Sensores",
-            descripcion = "Próximamente",
+            titulo = "Historial de Sensores",
+            descripcion = "Ver registros y métricas ambientales",
             icono = Icons.Default.Sensors,
-            onClick = {},
-            habilitado = false
+            onClick = onNavegarAHistorial, //
+            habilitado = true //
         )
     }
 }

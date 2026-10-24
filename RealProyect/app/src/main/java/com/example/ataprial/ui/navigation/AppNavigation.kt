@@ -13,6 +13,7 @@ import com.example.ataprial.data.database.AppDatabase
 import com.example.ataprial.data.model.TipoUsuario
 import com.example.ataprial.ui.screen.GalponesScreen
 import com.example.ataprial.ui.screen.GranjasScreen
+import com.example.ataprial.ui.screen.HistorialSensoresScreen
 import com.example.ataprial.ui.screen.HomeScreen
 import com.example.ataprial.ui.screen.LoginScreen
 import com.example.ataprial.ui.screen.UsuarioScreen
@@ -31,9 +32,11 @@ fun AppNavigation() {
     val database = AppDatabase.getDatabase(context)
 
     val galponesViewModel: GalponesViewModel = viewModel(
-        factory = GalponesViewModelFactory(database.galponDao())
+        factory = GalponesViewModelFactory(
+            galponDao = database.galponDao(),
+            medicionGalponDao = database.medicionGalponDao()
+        )
     )
-
 
     val granjasViewModel: GranjasViewModel = viewModel(
         factory = GranjasViewModelFactory(database.granjaDao())
@@ -68,8 +71,12 @@ fun AppNavigation() {
                     navController.navigate(AppRoutes.USUARIOS)
                 },
                 onNavegarAGalpones = {
-                    // Ahora la opción de Galpones te dirige primero a seleccionar la Granja
                     navController.navigate(AppRoutes.GRANJAS)
+                },
+                onNavegarAHistorial = {
+
+                    galponesViewModel.establecerGranjaActiva("")
+                    navController.navigate(AppRoutes.HISTORIAL_SENSORES)
                 }
             )
         }
@@ -92,7 +99,6 @@ fun AppNavigation() {
                 viewModel = granjasViewModel,
                 rolUsuario = rol,
                 onGranjaClick = { idGranja ->
-
                     navController.navigate("${AppRoutes.GALPONES}/$idGranja")
                 },
                 onVolver = { navController.popBackStack() }
@@ -110,6 +116,17 @@ fun AppNavigation() {
                 viewModel = galponesViewModel,
                 rolUsuario = rol,
                 granjaId = granjaId,
+                onVolver = { navController.popBackStack() },
+                onNavegarAHistorial = {
+                    navController.navigate(AppRoutes.HISTORIAL_SENSORES)
+                }
+            )
+        }
+
+        // 📊 RUTA 6: Historial de Sensores Global
+        composable(route = AppRoutes.HISTORIAL_SENSORES) {
+            HistorialSensoresScreen(
+                viewModel = galponesViewModel,
                 onVolver = { navController.popBackStack() }
             )
         }

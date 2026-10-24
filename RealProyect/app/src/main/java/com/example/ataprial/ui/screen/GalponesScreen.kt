@@ -1,53 +1,49 @@
 package com.example.ataprial.ui.screen
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.content.Context
-import android.widget.Toast
-
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Addchart
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.alpha
-
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import com.example.ataprial.data.model.EstadoGalpon
 import com.example.ataprial.data.model.Galpon
+import com.example.ataprial.data.model.GalponConMediciones
 import com.example.ataprial.data.model.TipoUsuario
 import com.example.ataprial.ui.viewmodel.GalponesViewModel
-import android.os.VibrationEffect
-import android.os.Vibrator
-import android.os.VibratorManager
-
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -56,7 +52,8 @@ fun GalponesScreen(
     viewModel: GalponesViewModel,
     rolUsuario: TipoUsuario = TipoUsuario.OPERARIO,
     granjaId: String,
-    onVolver: () -> Unit
+    onVolver: () -> Unit,
+    onNavegarAHistorial: () -> Unit
 ) {
     val context = LocalContext.current
     val listaGalpones by viewModel.galpones.collectAsState()
@@ -67,12 +64,19 @@ fun GalponesScreen(
     var mensajeError by remember { mutableStateOf<String?>(null) }
     var mensajeConfirmacion by remember { mutableStateOf<String?>(null) }
 
+    // Estados para diálogos
+    var galponSeleccionadoParaMedicion by remember { mutableStateOf<Galpon?>(null) }
+    var galponSeleccionadoParaHistorial by remember { mutableStateOf<GalponConMediciones?>(null) }
+    var nuevaTempInput by remember { mutableStateOf("") }
+    var nuevaHumInput by remember { mutableStateOf("") }
+
     LaunchedEffect(granjaId) {
         viewModel.establecerGranjaActiva(granjaId)
     }
+
     val launcherPermiso = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
-        onResult = { esOtorgado -> }
+        onResult = { _ -> }
     )
 
     LaunchedEffect(Unit) {
@@ -200,7 +204,6 @@ fun GalponesScreen(
                 HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
             }
 
-            // Animación de notificación / mensaje de confirmación
             AnimatedVisibility(
                 visible = mensajeConfirmacion != null,
                 enter = fadeIn(),
@@ -237,8 +240,8 @@ fun GalponesScreen(
             ) {
                 items(
                     items = listaGalpones,
-                    key = { it.id }
-                ) { galpon ->
+                    key = { it.galpon.id }
+                ) { galponConMediciones ->
                     var visibleCard by remember { mutableStateOf(false) }
                     LaunchedEffect(Unit) {
                         visibleCard = true
@@ -255,18 +258,20 @@ fun GalponesScreen(
                     ) {
                         Box(modifier = Modifier.animateItem()) {
                             GalponItemCard(
-
-                                galpon = galpon,
+                                galpon = galponConMediciones.galpon,
                                 rolUsuario = rolUsuario,
-                                onAccionOperario = {
-                                    mensajeConfirmacion = "✅ Operario confirmó acción en ${galpon.nombreGalpon}"
+                                onVerHistorialClick = {
+                                    viewModel.establecerGranjaActiva("")
+                                    onNavegarAHistorial()
                                 },
-                                onAccionSupervisor = {
-                                    mensajeConfirmacion = "📊 Supervisor consultó el historial de ${galpon.nombreGalpon}"
+                                onMedirClick = {
+                                    galponSeleccionadoParaMedicion = galponConMediciones.galpon
+                                    nuevaTempInput = ""
+                                    nuevaHumInput = ""
                                 },
                                 onEliminarClick = { idEliminar ->
                                     viewModel.eliminarGalpon(idEliminar)
-                                    Toast.makeText(context, "Galpón ${galpon.nombreGalpon} eliminado", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Galpón ${galponConMediciones.galpon.nombreGalpon} eliminado", Toast.LENGTH_SHORT).show()
                                 }
                             )
                         }
@@ -275,20 +280,151 @@ fun GalponesScreen(
             }
         }
     }
+
+    // 1. DIÁLOGO PARA REGISTRAR NUEVA MEDICIÓN
+    if (galponSeleccionadoParaMedicion != null) {
+        AlertDialog(
+            onDismissRequest = { galponSeleccionadoParaMedicion = null },
+            title = { Text("Nueva Medición: ${galponSeleccionadoParaMedicion?.nombreGalpon}") },
+            text = {
+                Column {
+                    Text("Ingresa los nuevos valores censados:")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = nuevaTempInput,
+                        onValueChange = { nuevaTempInput = it },
+                        label = { Text("Temperatura (°C)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = nuevaHumInput,
+                        onValueChange = { nuevaHumInput = it },
+                        label = { Text("Humedad (%)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val galpon = galponSeleccionadoParaMedicion!!
+                        val exito = viewModel.registrarMedicion(galpon, nuevaTempInput, nuevaHumInput)
+                        if (exito) {
+                            val tempVal = nuevaTempInput.toDoubleOrNull() ?: 0.0
+                            if (tempVal > 35.0) {
+                                hacerVibrarDispositivo(context)
+                                dispararNotificacionAlerta(context, galpon.nombreGalpon, tempVal)
+                            }
+                            mensajeConfirmacion = "✅ Medición actualizada en ${galpon.nombreGalpon}"
+                        } else {
+                            Toast.makeText(context, "Valores inválidos", Toast.LENGTH_SHORT).show()
+                        }
+                        galponSeleccionadoParaMedicion = null
+                    }
+                ) {
+                    Text("Guardar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { galponSeleccionadoParaMedicion = null }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    // 2. DIÁLOGO PARA VER HISTORIAL DE MEDICIONES
+    if (galponSeleccionadoParaHistorial != null) {
+        val galponActual = galponSeleccionadoParaHistorial!!.galpon
+        val historial = galponSeleccionadoParaHistorial!!.historialMediciones
+
+        AlertDialog(
+            onDismissRequest = { galponSeleccionadoParaHistorial = null },
+            title = { Text("Historial: ${galponActual.nombreGalpon}") },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 350.dp)
+                ) {
+                    if (historial.isEmpty()) {
+                        Text(
+                            text = "No se registran mediciones previas.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Text(
+                            text = "Registros totales: ${historial.size}",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(historial.reversed()) { medicion ->
+                                Card(
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.padding(10.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                text = "🌡️ ${medicion.temperatura} °C",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Text(
+                                                text = "💧 ${medicion.humedad} %",
+                                                style = MaterialTheme.typography.bodyMedium
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = "📅 ${medicion.fechaHora}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.outline
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = { galponSeleccionadoParaHistorial = null }) {
+                    Text("Cerrar")
+                }
+            }
+        )
+    }
 }
+
 @Composable
 fun GalponItemCard(
     galpon: Galpon,
     rolUsuario: TipoUsuario,
-    onAccionOperario: () -> Unit,
-    onAccionSupervisor: () -> Unit,
-    onEliminarClick: (String) -> Unit // Recibe la función lambda encargada de inyectar el ID
+    onVerHistorialClick: () -> Unit,
+    onMedirClick: () -> Unit,
+    onEliminarClick: (String) -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var isPressed by remember { mutableStateOf(false) }
     var isDeleting by remember { mutableStateOf(false) }
-// Reutilizamos tu genial animación estructural de ruptura de la tarjeta
+
     val scaleByState by animateFloatAsState(
         targetValue = if (isDeleting) 1.2f else if (isPressed) 0.96f else 1f,
         label = "card_scale"
@@ -303,6 +439,7 @@ fun GalponItemCard(
         animationSpec = tween(durationMillis = 300, delayMillis = 50),
         label = "card_alpha"
     )
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -343,13 +480,13 @@ fun GalponItemCard(
                             fontWeight = FontWeight.Bold
                         )
                     }
-// BOTÓN DE ELIMINACIÓN: Solo visible para JEFATURA
+
                     if (rolUsuario == TipoUsuario.JEFATURA) {
                         Spacer(modifier = Modifier.width(8.dp))
                         IconButton(onClick = {
                             if (!isDeleting) {
                                 isDeleting = true
-                                hacerVibrarDispositivo(context) // Ejecutamos tu vibración de 700ms
+                                hacerVibrarDispositivo(context)
                                 scope.launch {
                                     kotlinx.coroutines.delay(350)
                                     onEliminarClick(galpon.id)
@@ -365,7 +502,9 @@ fun GalponItemCard(
                     }
                 }
             }
+
             Spacer(modifier = Modifier.height(8.dp))
+
             Row(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
@@ -378,42 +517,32 @@ fun GalponItemCard(
                     fontWeight = FontWeight.Bold
                 )
             }
-// Opciones de interacción según los roles inferiores
-            if (rolUsuario != TipoUsuario.JEFATURA) {
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-            when (rolUsuario) {
-                TipoUsuario.OPERARIO -> {
-                    Button(
-                        onClick = {
-                            isPressed = true
-                            onAccionOperario()
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
-                    ) {
-                        LaunchedEffect(isPressed) {
-                            if (isPressed) {
-                                kotlinx.coroutines.delay(100)
-                                isPressed = false
-                            }
-                        }
-                        Icon(
-                            imageVector = Icons.Default.CheckCircle,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Confirmar Acción / Atender Alerta")
-                    }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Botones de acción inferiores
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Button(
+                    onClick = onMedirClick,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                ) {
+                    Icon(imageVector = Icons.Default.Addchart, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Medir", style = MaterialTheme.typography.labelMedium)
                 }
-                TipoUsuario.SUPERVISOR -> {
+
+                // Botón de historial visible tanto para Operarios como para Supervisores
+                if (rolUsuario == TipoUsuario.OPERARIO || rolUsuario == TipoUsuario.SUPERVISOR || rolUsuario == TipoUsuario.JEFATURA) {
                     OutlinedButton(
                         onClick = {
                             isPressed = true
-                            onAccionSupervisor()
+                            onVerHistorialClick()
                         },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.weight(1.5f)
                     ) {
                         LaunchedEffect(isPressed) {
                             if (isPressed) {
@@ -426,25 +555,23 @@ fun GalponItemCard(
                             contentDescription = null,
                             modifier = Modifier.size(16.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Ver Historial de Mediciones")
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Historial", style = MaterialTheme.typography.labelMedium)
                     }
-                }
-                TipoUsuario.JEFATURA -> {
-// JEFATURA no requiere botones de acción inferiores en la tarjeta
                 }
             }
         }
     }
 }
+
 fun dispararNotificacionAlerta(context: Context, nombreGalpon: String, temp: Double) {
     val channelId = "alerta_galpones_channel"
-    val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        val channel = NotificationChannel(
+        val channel = android.app.NotificationChannel(
             channelId,
             "Alertas de Temperatura",
-            NotificationManager.IMPORTANCE_HIGH
+            android.app.NotificationManager.IMPORTANCE_HIGH
         ).apply {
             description = "Canal para alertas críticas de galpones"
         }
@@ -457,8 +584,13 @@ fun dispararNotificacionAlerta(context: Context, nombreGalpon: String, temp: Dou
         .setPriority(NotificationCompat.PRIORITY_HIGH)
         .setAutoCancel(true)
         .build()
-    notificationManager.notify(System.currentTimeMillis().toInt(), notification)
+
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+        NotificationManagerCompat.from(context).notify(System.currentTimeMillis().toInt(), notification)
+    }
 }
+
 fun hacerVibrarDispositivo(context: Context) {
     val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager

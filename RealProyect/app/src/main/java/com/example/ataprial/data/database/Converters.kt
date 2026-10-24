@@ -5,6 +5,10 @@ import com.example.ataprial.data.model.EstadoGalpon
 import com.example.ataprial.data.model.TipoUsuario
 import java.util.Date
 
+import com.example.ataprial.data.model.MedicionGalpon
+
+
+
 class Converters {
 
     // --- CONVERSORES DE USUARIO ---
@@ -28,6 +32,8 @@ class Converters {
     fun dateToTimestamp(date: Date?): Long? {
         return date?.time
     }
+
+
 
     @TypeConverter
     fun fromEstadoGalpon(value: EstadoGalpon?): String? {
