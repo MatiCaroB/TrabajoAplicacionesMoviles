@@ -1,6 +1,7 @@
 package com.example.ataprial.data.model
 
 import androidx.room.Entity
+import androidx.room.ForeignKey
 import androidx.room.PrimaryKey
 import java.util.Date
 
@@ -9,8 +10,18 @@ enum class EstadoGalpon {
     ADVERTENCIA,
     CRITICO
 }
+@Entity(
+    tableName = "galpones",
+    foreignKeys = [
+        ForeignKey(
+            entity = Granja::class,
+            parentColumns = ["id"],
+            childColumns = ["granjaId"],
+            onDelete = ForeignKey.CASCADE // Si se borra la granja, se borran automáticamente sus galpones
+        )
+    ]
+)
 
-@Entity(tableName = "galpones")
 data class Galpon(
     @PrimaryKey
     val id: String,

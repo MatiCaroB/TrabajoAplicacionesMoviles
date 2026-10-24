@@ -14,7 +14,7 @@ interface UsuarioDao {
     @Query("SELECT * FROM usuarios")
     fun obtenerTodosLosUsuarios(): Flow<List<Usuario>>
 
-    // 💡 Asegúrate de que esta consulta coincida al 100% con tu tabla
+
     @Query("SELECT * FROM usuarios WHERE correo = :correo LIMIT 1")
     suspend fun buscarUsuarioPorCorreo(correo: String): Usuario?
 

@@ -53,6 +53,13 @@ fun UsuarioScreen(
     var menuExpandido by remember { mutableStateOf(false) }
     var claveVisible by remember { mutableStateOf(false) }
 
+
+    LaunchedEffect(usuarioLogueado) {
+        if (usuarioLogueado == null) {
+            onCerrarSesion()
+        }
+    }
+
     val rolActivo = usuarioLogueado?.rol ?: TipoUsuario.OPERARIO
     val ocultarFiltroOSesion = usuarioLogueado == null
 
@@ -84,7 +91,9 @@ fun UsuarioScreen(
 
                 Button(
                     onClick = {
-                        viewModel.cerrarSesion(onNavigateOut = onCerrarSesion)
+                        viewModel.cerrarSesion(onNavigateOut = {
+                            onCerrarSesion()
+                        })
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
@@ -236,13 +245,13 @@ fun UsuarioScreen(
                 )
             }
         } else if (usuarioLogueado != null) {
+
             Text(
                 text = "Usuarios Registrados (${listaUsuarios.size})",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
-
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth()
@@ -266,7 +275,6 @@ fun UsuarioScreen(
         }
     }
 }
-
 @Composable
 fun UsuarioItemCard(
     usuario: Usuario,
@@ -276,8 +284,6 @@ fun UsuarioItemCard(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var isDeleting by remember { mutableStateOf(false) }
-
-    // Animación de ruptura (escala, rotación y alpha)
     val scale by animateFloatAsState(
         targetValue = if (isDeleting) 1.2f else 1f,
         animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
@@ -293,13 +299,11 @@ fun UsuarioItemCard(
         animationSpec = tween(durationMillis = 300, delayMillis = 50),
         label = "alpha_break"
     )
-
     val colorBadge = when (usuario.rol) {
         TipoUsuario.OPERARIO -> Color(0xFF1976D2)
         TipoUsuario.SUPERVISOR -> Color(0xFFED6C02)
         TipoUsuario.JEFATURA -> Color(0xFF2E7D32)
     }
-
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -336,11 +340,9 @@ fun UsuarioItemCard(
                     IconButton(onClick = {
                         if (!isDeleting) {
                             isDeleting = true
-
-
+// Activas y en color normal gracias a las funciones de abajo
                             hacerVibrarEliminacion(context)
                             reproducirSonidoEliminacion(context)
-
                             scope.launch {
                                 delay(350)
                                 onEliminarClick()
@@ -359,7 +361,6 @@ fun UsuarioItemCard(
     }
 }
 
-// Funciones auxiliares para vibración y sonido
 fun hacerVibrarEliminacion(context: Context) {
     val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
@@ -368,16 +369,14 @@ fun hacerVibrarEliminacion(context: Context) {
         @Suppress("DEPRECATION")
         context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
     }
-
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        vibrator.vibrate(VibrationEffect.createOneShot(80, VibrationEffect.DEFAULT_AMPLITUDE))
+        vibrator.vibrate(VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE))
     } else {
         @Suppress("DEPRECATION")
-        vibrator.vibrate(80)
+        vibrator.vibrate(100)
     }
 }
-
 fun reproducirSonidoEliminacion(context: Context) {
     val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-    audioManager.playSoundEffect(AudioManager.FX_KEYPRESS_DELETE, 1.0f)
+    audioManager.playSoundEffect(AudioManager.FX_KEYPRESS_DELETE)
 }

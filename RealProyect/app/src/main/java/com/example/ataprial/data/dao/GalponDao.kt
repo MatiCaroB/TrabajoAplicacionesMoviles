@@ -18,4 +18,12 @@ interface GalponDao {
 
     @Query("DELETE FROM galpones WHERE id = :id")
     suspend fun eliminarGalpon(id: String)
+
+    @Query("SELECT * FROM galpones WHERE granjaId = :granjaId")
+    fun obtenerGalponesPorGranja(granjaId: String):Flow<List<Galpon>>
+
+
+
+
+
 }

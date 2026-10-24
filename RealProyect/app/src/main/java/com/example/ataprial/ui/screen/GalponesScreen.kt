@@ -13,6 +13,7 @@ import androidx.compose.animation.core.tween
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.widget.Toast
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -22,15 +23,20 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.alpha
+
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+
 import androidx.core.app.NotificationCompat
 import com.example.ataprial.data.model.EstadoGalpon
 import com.example.ataprial.data.model.Galpon
@@ -42,12 +48,14 @@ import android.os.VibratorManager
 
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GalponesScreen(
     viewModel: GalponesViewModel,
     rolUsuario: TipoUsuario = TipoUsuario.OPERARIO,
+    granjaId: String,
     onVolver: () -> Unit
 ) {
     val context = LocalContext.current
@@ -59,6 +67,9 @@ fun GalponesScreen(
     var mensajeError by remember { mutableStateOf<String?>(null) }
     var mensajeConfirmacion by remember { mutableStateOf<String?>(null) }
 
+    LaunchedEffect(granjaId) {
+        viewModel.establecerGranjaActiva(granjaId)
+    }
     val launcherPermiso = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
         onResult = { esOtorgado -> }
@@ -164,7 +175,7 @@ fun GalponesScreen(
 
                 Button(
                     onClick = {
-                        val exito = viewModel.agregarGalpon(nombreGalpon, temperatura, humedad)
+                        val exito = viewModel.agregarGalpon(nombreGalpon, temperatura, humedad, granjaId)
                         if (exito) {
                             val tempDouble = temperatura.toDoubleOrNull() ?: 0.0
 
@@ -228,7 +239,6 @@ fun GalponesScreen(
                     items = listaGalpones,
                     key = { it.id }
                 ) { galpon ->
-                    // Estado local para disparar la animación de aparición inicial tipo slide/fade
                     var visibleCard by remember { mutableStateOf(false) }
                     LaunchedEffect(Unit) {
                         visibleCard = true
@@ -245,6 +255,7 @@ fun GalponesScreen(
                     ) {
                         Box(modifier = Modifier.animateItem()) {
                             GalponItemCard(
+
                                 galpon = galpon,
                                 rolUsuario = rolUsuario,
                                 onAccionOperario = {
@@ -252,6 +263,10 @@ fun GalponesScreen(
                                 },
                                 onAccionSupervisor = {
                                     mensajeConfirmacion = "📊 Supervisor consultó el historial de ${galpon.nombreGalpon}"
+                                },
+                                onEliminarClick = { idEliminar ->
+                                    viewModel.eliminarGalpon(idEliminar)
+                                    Toast.makeText(context, "Galpón ${galpon.nombreGalpon} eliminado", Toast.LENGTH_SHORT).show()
                                 }
                             )
                         }
@@ -261,21 +276,39 @@ fun GalponesScreen(
         }
     }
 }
-
 @Composable
 fun GalponItemCard(
     galpon: Galpon,
     rolUsuario: TipoUsuario,
     onAccionOperario: () -> Unit,
-    onAccionSupervisor: () -> Unit
+    onAccionSupervisor: () -> Unit,
+    onEliminarClick: (String) -> Unit // Recibe la función lambda encargada de inyectar el ID
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var isPressed by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(targetValue = if (isPressed) 0.96f else 1f, label = "card_scale")
-
+    var isDeleting by remember { mutableStateOf(false) }
+// Reutilizamos tu genial animación estructural de ruptura de la tarjeta
+    val scaleByState by animateFloatAsState(
+        targetValue = if (isDeleting) 1.2f else if (isPressed) 0.96f else 1f,
+        label = "card_scale"
+    )
+    val rotation by animateFloatAsState(
+        targetValue = if (isDeleting) 25f else 0f,
+        animationSpec = tween(durationMillis = 350, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+        label = "card_rotation"
+    )
+    val alpha by animateFloatAsState(
+        targetValue = if (isDeleting) 0f else 1f,
+        animationSpec = tween(durationMillis = 300, delayMillis = 50),
+        label = "card_alpha"
+    )
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .scale(scale),
+            .scale(scaleByState)
+            .rotate(rotation)
+            .alpha(alpha),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
@@ -293,28 +326,46 @@ fun GalponItemCard(
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold
                 )
-
-                val colorEstado = when (galpon.estadoGalpon) {
-                    EstadoGalpon.NORMAL -> MaterialTheme.colorScheme.primaryContainer
-                    EstadoGalpon.ADVERTENCIA -> MaterialTheme.colorScheme.errorContainer
-                    EstadoGalpon.CRITICO -> MaterialTheme.colorScheme.error
-                }
-
-                Surface(
-                    color = colorEstado,
-                    shape = MaterialTheme.shapes.small
-                ) {
-                    Text(
-                        text = galpon.estadoGalpon.name,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    val colorEstado = when (galpon.estadoGalpon) {
+                        EstadoGalpon.NORMAL -> MaterialTheme.colorScheme.primaryContainer
+                        EstadoGalpon.ADVERTENCIA -> MaterialTheme.colorScheme.errorContainer
+                        EstadoGalpon.CRITICO -> MaterialTheme.colorScheme.error
+                    }
+                    Surface(
+                        color = colorEstado,
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Text(
+                            text = galpon.estadoGalpon.name,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+// BOTÓN DE ELIMINACIÓN: Solo visible para JEFATURA
+                    if (rolUsuario == TipoUsuario.JEFATURA) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        IconButton(onClick = {
+                            if (!isDeleting) {
+                                isDeleting = true
+                                hacerVibrarDispositivo(context) // Ejecutamos tu vibración de 700ms
+                                scope.launch {
+                                    kotlinx.coroutines.delay(350)
+                                    onEliminarClick(galpon.id)
+                                }
+                            }
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Eliminar galpón",
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
                 }
             }
-
             Spacer(modifier = Modifier.height(8.dp))
-
             Row(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
@@ -327,9 +378,10 @@ fun GalponItemCard(
                     fontWeight = FontWeight.Bold
                 )
             }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
+// Opciones de interacción según los roles inferiores
+            if (rolUsuario != TipoUsuario.JEFATURA) {
+                Spacer(modifier = Modifier.height(12.dp))
+            }
             when (rolUsuario) {
                 TipoUsuario.OPERARIO -> {
                     Button(
@@ -379,17 +431,15 @@ fun GalponItemCard(
                     }
                 }
                 TipoUsuario.JEFATURA -> {
-                    // JEFATURA
+// JEFATURA no requiere botones de acción inferiores en la tarjeta
                 }
             }
         }
     }
 }
-
 fun dispararNotificacionAlerta(context: Context, nombreGalpon: String, temp: Double) {
     val channelId = "alerta_galpones_channel"
     val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         val channel = NotificationChannel(
             channelId,
@@ -400,7 +450,6 @@ fun dispararNotificacionAlerta(context: Context, nombreGalpon: String, temp: Dou
         }
         notificationManager.createNotificationChannel(channel)
     }
-
     val notification = NotificationCompat.Builder(context, channelId)
         .setSmallIcon(android.R.drawable.ic_dialog_alert)
         .setContentTitle("⚠️ ¡ALERTA CRÍTICA EN GALPÓN!")
@@ -408,10 +457,8 @@ fun dispararNotificacionAlerta(context: Context, nombreGalpon: String, temp: Dou
         .setPriority(NotificationCompat.PRIORITY_HIGH)
         .setAutoCancel(true)
         .build()
-
     notificationManager.notify(System.currentTimeMillis().toInt(), notification)
 }
-
 fun hacerVibrarDispositivo(context: Context) {
     val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
@@ -420,7 +467,6 @@ fun hacerVibrarDispositivo(context: Context) {
         @Suppress("DEPRECATION")
         context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
     }
-
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         vibrator.vibrate(VibrationEffect.createOneShot(700, VibrationEffect.DEFAULT_AMPLITUDE))
     } else {

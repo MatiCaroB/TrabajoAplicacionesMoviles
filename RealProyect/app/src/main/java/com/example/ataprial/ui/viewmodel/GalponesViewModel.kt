@@ -6,8 +6,11 @@ import androidx.lifecycle.viewModelScope
 import com.example.ataprial.data.dao.GalponDao
 import com.example.ataprial.data.model.EstadoGalpon
 import com.example.ataprial.data.model.Galpon
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.Date
@@ -15,22 +18,36 @@ import java.util.UUID
 
 class GalponesViewModel(private val galponDao: GalponDao) : ViewModel() {
 
-    val galpones: StateFlow<List<Galpon>> = galponDao.obtenerTodosLosGalpones()
+    private val idGranjaActiva = MutableStateFlow("")
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val galpones: StateFlow<List<Galpon>> = idGranjaActiva
+        .flatMapLatest { id ->
+            if (id.isBlank()) {
+                kotlinx.coroutines.flow.flowOf(emptyList())
+            } else {
+                galponDao.obtenerGalponesPorGranja(id)
+            }
+        }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
 
-    fun agregarGalpon(nombre: String, tempStr: String, humedadStr: String): Boolean {
-        val temp = tempStr.toDoubleOrNull()
-        val hum = humedadStr.toDoubleOrNull()
+    // Configura el filtro actual de la pantalla apenas entras
+    fun establecerGranjaActiva(granjaId: String) {
+        idGranjaActiva.value = granjaId
+    }
 
-        if (nombre.isBlank() || temp == null || hum == null) {
+    fun agregarGalpon(nombre: String, tempStr: String, humidityStr: String, granjaId: String): Boolean {
+        val temp = tempStr.toDoubleOrNull()
+        val hum = humidityStr.toDoubleOrNull()
+
+        if (nombre.isBlank() || temp == null || hum == null || granjaId.isBlank()) {
             return false
         }
 
-        // valores que afectan los estados de la temperatura
         val estado = when {
             temp > 35.0 -> EstadoGalpon.CRITICO
             temp > 30.0 -> EstadoGalpon.ADVERTENCIA
@@ -39,13 +56,13 @@ class GalponesViewModel(private val galponDao: GalponDao) : ViewModel() {
 
         val nuevoGalpon = Galpon(
             id = UUID.randomUUID().toString(),
-            granjaId = "GRANJA-01",
+            granjaId = granjaId.trim(),
             nombreGalpon = nombre.trim(),
             temperatura = temp,
             humedad = hum,
             estadoGalpon = estado,
             fechaActualizacion = Date(),
-            alertasActivas = temp > 30.0 // Se activa la alerta si pasa de 30°C
+            alertasActivas = temp > 30.0
         )
 
         viewModelScope.launch {
@@ -54,8 +71,14 @@ class GalponesViewModel(private val galponDao: GalponDao) : ViewModel() {
 
         return true
     }
-}
 
+
+    fun eliminarGalpon(id: String) {
+        viewModelScope.launch {
+            galponDao.eliminarGalpon(id)
+        }
+    }
+}
 
 class GalponesViewModelFactory(private val galponDao: GalponDao) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
