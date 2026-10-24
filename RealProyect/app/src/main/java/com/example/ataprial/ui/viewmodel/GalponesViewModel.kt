@@ -30,15 +30,22 @@ class GalponesViewModel(private val galponDao: GalponDao) : ViewModel() {
             return false
         }
 
+        // valores que afectan los estados de la temperatura
+        val estado = when {
+            temp > 35.0 -> EstadoGalpon.CRITICO
+            temp > 30.0 -> EstadoGalpon.ADVERTENCIA
+            else -> EstadoGalpon.NORMAL
+        }
+
         val nuevoGalpon = Galpon(
             id = UUID.randomUUID().toString(),
             granjaId = "GRANJA-01",
             nombreGalpon = nombre.trim(),
             temperatura = temp,
             humedad = hum,
-            estadoGalpon = if (temp > 30.0) EstadoGalpon.ADVERTENCIA else EstadoGalpon.NORMAL,
+            estadoGalpon = estado,
             fechaActualizacion = Date(),
-            alertasActivas = temp > 30.0
+            alertasActivas = temp > 30.0 // Se activa la alerta si pasa de 30°C
         )
 
         viewModelScope.launch {
@@ -49,7 +56,7 @@ class GalponesViewModel(private val galponDao: GalponDao) : ViewModel() {
     }
 }
 
-// ⬇️ AGREGA ESTO AL FINAL DEL ARCHIVO ⬇️
+
 class GalponesViewModelFactory(private val galponDao: GalponDao) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(GalponesViewModel::class.java)) {

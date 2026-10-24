@@ -1,5 +1,19 @@
 package com.example.ataprial.ui.screen
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.Context
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -12,21 +26,31 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.core.app.NotificationCompat
 import com.example.ataprial.data.model.EstadoGalpon
 import com.example.ataprial.data.model.Galpon
 import com.example.ataprial.data.model.TipoUsuario
 import com.example.ataprial.ui.viewmodel.GalponesViewModel
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GalponesScreen(
     viewModel: GalponesViewModel,
-    rolUsuario: TipoUsuario = TipoUsuario.OPERARIO, // Rol del usuario logueado
+    rolUsuario: TipoUsuario = TipoUsuario.OPERARIO,
     onVolver: () -> Unit
 ) {
+    val context = LocalContext.current
     val listaGalpones by viewModel.galpones.collectAsState()
 
     var nombreGalpon by remember { mutableStateOf("") }
@@ -34,6 +58,23 @@ fun GalponesScreen(
     var humedad by remember { mutableStateOf("") }
     var mensajeError by remember { mutableStateOf<String?>(null) }
     var mensajeConfirmacion by remember { mutableStateOf<String?>(null) }
+
+    val launcherPermiso = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { esOtorgado -> }
+    )
+
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                launcherPermiso.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -59,7 +100,6 @@ fun GalponesScreen(
                 .padding(innerPadding)
                 .padding(16.dp)
         ) {
-            // 🔴 SOLO JEFATURA: Formulario para registrar nuevos galpones
             if (rolUsuario == TipoUsuario.JEFATURA) {
                 Text(
                     text = "Registrar Nuevo Galpón (Jefatura)",
@@ -126,6 +166,13 @@ fun GalponesScreen(
                     onClick = {
                         val exito = viewModel.agregarGalpon(nombreGalpon, temperatura, humedad)
                         if (exito) {
+                            val tempDouble = temperatura.toDoubleOrNull() ?: 0.0
+
+                            if (tempDouble > 35.0) {
+                                hacerVibrarDispositivo(context)
+                                dispararNotificacionAlerta(context, nombreGalpon, tempDouble)
+                            }
+
                             nombreGalpon = ""
                             temperatura = ""
                             humedad = ""
@@ -142,24 +189,29 @@ fun GalponesScreen(
                 HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
             }
 
-            // Mensaje informativo temporal al realizar una acción de Operario o Supervisor
-            if (mensajeConfirmacion != null) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 12.dp)
-                ) {
-                    Text(
-                        text = mensajeConfirmacion!!,
-                        modifier = Modifier.padding(12.dp),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold
-                    )
+            // Animación de notificación / mensaje de confirmación
+            AnimatedVisibility(
+                visible = mensajeConfirmacion != null,
+                enter = fadeIn(),
+                exit = fadeOut()
+            ) {
+                mensajeConfirmacion?.let { mensaje ->
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp)
+                    ) {
+                        Text(
+                            text = mensaje,
+                            modifier = Modifier.padding(12.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
 
-            // VISTA DE GALPONES PARA TODOS LOS ROLES
             Text(
                 text = "Galpones Registrados (${listaGalpones.size}) - Rol: ${rolUsuario.name}",
                 style = MaterialTheme.typography.titleMedium,
@@ -176,16 +228,34 @@ fun GalponesScreen(
                     items = listaGalpones,
                     key = { it.id }
                 ) { galpon ->
-                    GalponItemCard(
-                        galpon = galpon,
-                        rolUsuario = rolUsuario,
-                        onAccionOperario = {
-                            mensajeConfirmacion = "✅ Operario confirmó acción en ${galpon.nombreGalpon}"
-                        },
-                        onAccionSupervisor = {
-                            mensajeConfirmacion = "📊 Supervisor consultó el historial de ${galpon.nombreGalpon}"
+                    // Estado local para disparar la animación de aparición inicial tipo slide/fade
+                    var visibleCard by remember { mutableStateOf(false) }
+                    LaunchedEffect(Unit) {
+                        visibleCard = true
+                    }
+
+                    AnimatedVisibility(
+                        visible = visibleCard,
+                        enter = slideInVertically(
+                            initialOffsetY = { fullHeight -> fullHeight / 2 },
+                            animationSpec = tween(durationMillis = 400)
+                        ) + fadeIn(
+                            animationSpec = tween(durationMillis = 400)
+                        )
+                    ) {
+                        Box(modifier = Modifier.animateItem()) {
+                            GalponItemCard(
+                                galpon = galpon,
+                                rolUsuario = rolUsuario,
+                                onAccionOperario = {
+                                    mensajeConfirmacion = "✅ Operario confirmó acción en ${galpon.nombreGalpon}"
+                                },
+                                onAccionSupervisor = {
+                                    mensajeConfirmacion = "📊 Supervisor consultó el historial de ${galpon.nombreGalpon}"
+                                }
+                            )
                         }
-                    )
+                    }
                 }
             }
         }
@@ -199,8 +269,13 @@ fun GalponItemCard(
     onAccionOperario: () -> Unit,
     onAccionSupervisor: () -> Unit
 ) {
+    var isPressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(targetValue = if (isPressed) 0.96f else 1f, label = "card_scale")
+
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .scale(scale),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
@@ -253,17 +328,24 @@ fun GalponItemCard(
                 )
             }
 
-            // ACCIONES DIFERENCIADAS POR ROL
             Spacer(modifier = Modifier.height(12.dp))
 
             when (rolUsuario) {
                 TipoUsuario.OPERARIO -> {
-                    // 🔵 OPERARIO: Registrar/Confirmar acción realizada
                     Button(
-                        onClick = onAccionOperario,
+                        onClick = {
+                            isPressed = true
+                            onAccionOperario()
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
                     ) {
+                        LaunchedEffect(isPressed) {
+                            if (isPressed) {
+                                kotlinx.coroutines.delay(100)
+                                isPressed = false
+                            }
+                        }
                         Icon(
                             imageVector = Icons.Default.CheckCircle,
                             contentDescription = null,
@@ -274,11 +356,19 @@ fun GalponItemCard(
                     }
                 }
                 TipoUsuario.SUPERVISOR -> {
-                    // 🟡 SUPERVISOR: Revisar historial de eventos e inspecciones
                     OutlinedButton(
-                        onClick = onAccionSupervisor,
+                        onClick = {
+                            isPressed = true
+                            onAccionSupervisor()
+                        },
                         modifier = Modifier.fillMaxWidth()
                     ) {
+                        LaunchedEffect(isPressed) {
+                            if (isPressed) {
+                                kotlinx.coroutines.delay(100)
+                                isPressed = false
+                            }
+                        }
                         Icon(
                             imageVector = Icons.Default.History,
                             contentDescription = null,
@@ -289,9 +379,52 @@ fun GalponItemCard(
                     }
                 }
                 TipoUsuario.JEFATURA -> {
-                    // 🔴 JEFATURA: Ya administra el formulario arriba, así que ve el estado compacto sin saturar botones
+                    // JEFATURA
                 }
             }
         }
+    }
+}
+
+fun dispararNotificacionAlerta(context: Context, nombreGalpon: String, temp: Double) {
+    val channelId = "alerta_galpones_channel"
+    val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        val channel = NotificationChannel(
+            channelId,
+            "Alertas de Temperatura",
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = "Canal para alertas críticas de galpones"
+        }
+        notificationManager.createNotificationChannel(channel)
+    }
+
+    val notification = NotificationCompat.Builder(context, channelId)
+        .setSmallIcon(android.R.drawable.ic_dialog_alert)
+        .setContentTitle("⚠️ ¡ALERTA CRÍTICA EN GALPÓN!")
+        .setContentText("El galpón '$nombreGalpon' registró $temp °C")
+        .setPriority(NotificationCompat.PRIORITY_HIGH)
+        .setAutoCancel(true)
+        .build()
+
+    notificationManager.notify(System.currentTimeMillis().toInt(), notification)
+}
+
+fun hacerVibrarDispositivo(context: Context) {
+    val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+        vibratorManager.defaultVibrator
+    } else {
+        @Suppress("DEPRECATION")
+        context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+    }
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        vibrator.vibrate(VibrationEffect.createOneShot(700, VibrationEffect.DEFAULT_AMPLITUDE))
+    } else {
+        @Suppress("DEPRECATION")
+        vibrator.vibrate(700)
     }
 }
