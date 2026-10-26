@@ -75,5 +75,4 @@ La base de datos se crea con estas cuentas la primera vez que se abre la aplicac
 
 ## Planificación y control de versiones
 
-- Planificación de tareas: **Trello** — `<ENLACE-AL-TABLERO>`
 - Repositorio: **GitHub** — `<URL-DEL-REPOSITORIO>`
